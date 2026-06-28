@@ -60,6 +60,18 @@
   .mm-joy-knob{ position:absolute; left:-30px; top:-30px; width:60px; height:60px; border-radius:50%;
     background:radial-gradient(rgba(180,160,235,.95),rgba(120,100,190,.9)); border:2px solid rgba(255,255,255,.5);
     box-shadow:0 3px 10px rgba(0,0,0,.5); will-change:transform; }
+  /* じゅうじボタン（上下左右）＝いつも左下に表示。指でおして移動。スライドで方向きりかえOK。 */
+  .mm-dpad{ position:fixed; left:max(16px,env(safe-area-inset-left)); bottom:max(20px,env(safe-area-inset-bottom));
+    width:186px; height:186px; z-index:21; pointer-events:none; touch-action:none; }
+  .mm-dbtn{ position:absolute; width:62px; height:62px; pointer-events:auto; margin:0; padding:0; font-family:inherit;
+    background:radial-gradient(rgba(95,84,140,.92),rgba(58,47,94,.92)); border:2px solid rgba(200,185,245,.55);
+    color:#fff; font-size:28px; font-weight:bold; line-height:1; display:flex; align-items:center; justify-content:center;
+    border-radius:15px; box-shadow:0 4px 0 rgba(0,0,0,.45); user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; }
+  .mm-dbtn.on{ background:radial-gradient(#ffe08a,#f3a93a); color:#5a3b00; transform:translateY(2px); box-shadow:0 2px 0 rgba(0,0,0,.45); }
+  .mm-dup{ left:62px; top:0; }
+  .mm-ddown{ left:62px; bottom:0; }
+  .mm-dleft{ left:0; top:62px; }
+  .mm-dright{ right:0; top:62px; }
   .mm-a{ position:fixed; right:max(22px,env(safe-area-inset-right)); bottom:max(28px,env(safe-area-inset-bottom));
     width:96px; height:96px; border-radius:50%; border:none; font-size:22px; font-weight:bold; pointer-events:auto;
     color:#fff; background:radial-gradient(#ff9a6b,#e2542a); box-shadow:0 6px 0 #a8381a; z-index:21; user-select:none;
@@ -809,6 +821,12 @@ var QBANK = {"nensho":[{"q":"りんごは なんこ あるかな？ 🍎🍎🍎
     input.up = input.down = input.left = input.right = false;
     input.attackHeld = false;
     keyRepeating.up = keyRepeating.down = keyRepeating.left = keyRepeating.right = false;
+    // 十字ボタンの押下状態も解除（フォーカス喪失時に指が離れた扱いにする）
+    if (typeof padHeld !== 'undefined') { padHeld.up = padHeld.down = padHeld.left = padHeld.right = false; }
+    if (typeof dpadTouches !== 'undefined') {
+      for (var _id in dpadTouches) { if (dpadTouches[_id]) { var _b = dpadBtnFor(dpadTouches[_id]); if (_b) _b.classList.remove('on'); } }
+      dpadTouches = {};
+    }
   }
   // keyup を 取りこぼしても 直る：押しっぱなしのキーは OS の 自動リピートで keydown が
   // 連続して届く。リピート中だったのに 急に 止まったら「離された」とみなして 解除する。
@@ -817,6 +835,7 @@ var QBANK = {"nensho":[{"q":"りんごは なんこ あるかな？ 🍎🍎🍎
     for (var i = 0; i < dirs.length; i++) {
       var d = dirs[i];
       if (!input[d]) continue;
+      if (typeof padHeld !== 'undefined' && padHeld[d]) continue;   // 十字ボタン/タッチで押している間はキーボード用の自動解除を適用しない
       // リピート中だったのに 250ms 来ない＝離された / または どんな場合でも 1.5秒 無反応なら解除
       if ((keyRepeating[d] && (nm - keyDownT[d]) > 250) || (nm - keyDownT[d]) > 1500) { input[d] = false; keyRepeating[d] = false; }
     }
@@ -854,11 +873,39 @@ var QBANK = {"nensho":[{"q":"りんごは なんこ あるかな？ 🍎🍎🍎
   }
 
   // ---- タッチ操作：左＝フローティングスティック / 右＝タップ攻撃（マルチタッチ対応） ----
-  var joy = { id: null, ox: 0, oy: 0 };      // 移動スティック（指1本）
+  var joy = { id: null, ox: 0, oy: 0 };      // 移動スティック（指1本）※現在は十字ボタンを使用
   var atkTouches = {};                       // 攻撃中の指ID集合
   var elJoy, elJoyKnob;
 
   function clearMove() { input.up = input.down = input.left = input.right = false; }
+
+  // ---- 十字ボタン（Dパッド）：常時表示の上下左右ボタンで移動 ----
+  var dpadTouches = {};   // 指ID -> 方向('up'/'down'/'left'/'right' or '')
+  var padHeld = { up: false, down: false, left: false, right: false };  // タッチ/マウスで押下中の方向（keyWatchdogの対象外にする）
+  function setDir(dir, on) {
+    if (!dir) return;
+    padHeld[dir] = on;
+    if (dir === 'up') input.up = on; else if (dir === 'down') input.down = on;
+    else if (dir === 'left') input.left = on; else if (dir === 'right') input.right = on;
+  }
+  function dpadBtnFor(dir) { return elGame ? elGame.querySelector('.mm-dbtn[data-dir="' + dir + '"]') : null; }
+  function setDpadTouch(id, dir) {
+    var prev = dpadTouches[id];
+    if (prev === dir) return;
+    if (prev) { setDir(prev, false); var pb = dpadBtnFor(prev); if (pb) pb.classList.remove('on'); }
+    dpadTouches[id] = dir;
+    if (dir) { setDir(dir, true); var nb = dpadBtnFor(dir); if (nb) nb.classList.add('on'); }
+  }
+  function clearDpadTouch(id) {
+    var prev = dpadTouches[id];
+    if (prev) { setDir(prev, false); var pb = dpadBtnFor(prev); if (pb) pb.classList.remove('on'); }
+    delete dpadTouches[id];
+  }
+  function dirAtPoint(x, y) {   // 指の下にある十字ボタンの方向（スライドで方向切替できるように）
+    var el = document.elementFromPoint(x, y);
+    var d = el && el.closest ? el.closest('[data-dir]') : null;
+    return d ? d.getAttribute('data-dir') : '';
+  }
 
   function setJoyVec(dx, dy) {
     // 画面座標（yは下が＋）。デッドゾーンの外で8方向に変換。
@@ -886,7 +933,7 @@ var QBANK = {"nensho":[{"q":"りんごは なんこ あるかな？ 🍎🍎🍎
   function hideJoy() { if (elJoy) elJoy.style.display = 'none'; }
 
   function touchZone(t) {
-    // ポーズ/攻撃ボタンの上はそのボタン扱い。それ以外は左45%＝移動・残り＝攻撃。
+    // 各ボタンの上はそのボタン扱い。十字ボタン＝移動。それ以外のタップ＝攻撃（けん）。
     var tg = t.target;
     if (tg && tg.closest) {
       if (tg.closest('#mm-pausebtn')) return 'pause';
@@ -894,8 +941,10 @@ var QBANK = {"nensho":[{"q":"りんごは なんこ あるかな？ 🍎🍎🍎
       if (tg.closest('#mm-boombtn')) return 'boom';
       if (tg.closest('#mm-bowbtn')) return 'bow';
       if (tg.closest('#mm-atkbtn')) return 'atk';
+      var dp = tg.closest('[data-dir]');
+      if (dp) return 'dir:' + dp.getAttribute('data-dir');
     }
-    return (t.clientX < window.innerWidth * 0.45) ? 'move' : 'atk';
+    return 'atk';
   }
 
   function pressAttack(id) {
@@ -915,17 +964,15 @@ var QBANK = {"nensho":[{"q":"りんごは なんこ あるかな？ 🍎🍎🍎
         if (z === 'bomb') { e.preventDefault(); input.bombQueued = true; continue; }
         if (z === 'boom') { e.preventDefault(); input.boomerangQueued = true; continue; }
         if (z === 'bow') { e.preventDefault(); input.bowQueued = true; continue; }
-        if (z === 'move' && joy.id === null) {
-          e.preventDefault();
-          joy.id = t.identifier; joy.ox = t.clientX; joy.oy = t.clientY;
-          showJoy(t.clientX, t.clientY); setJoyVec(0, 0);
-        } else { e.preventDefault(); pressAttack(t.identifier); }
+        if (z.indexOf('dir:') === 0) { e.preventDefault(); setDpadTouch(t.identifier, z.slice(4)); continue; }
+        e.preventDefault(); pressAttack(t.identifier);
       }
     }, { passive: false });
 
     area.addEventListener('touchmove', function (e) {
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
+        if (dpadTouches.hasOwnProperty(t.identifier)) { e.preventDefault(); setDpadTouch(t.identifier, dirAtPoint(t.clientX, t.clientY)); continue; }
         if (t.identifier === joy.id) { e.preventDefault(); setJoyVec(t.clientX - joy.ox, t.clientY - joy.oy); }
       }
     }, { passive: false });
@@ -933,6 +980,7 @@ var QBANK = {"nensho":[{"q":"りんごは なんこ あるかな？ 🍎🍎🍎
     var end = function (e) {
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
+        if (dpadTouches.hasOwnProperty(t.identifier)) { clearDpadTouch(t.identifier); continue; }
         if (t.identifier === joy.id) { joy.id = null; clearMove(); hideJoy(); }
         else if (atkTouches[t.identifier]) releaseAttack(t.identifier);
       }
@@ -2494,12 +2542,18 @@ var QBANK = {"nensho":[{"q":"りんごは なんこ あるかな？ 🍎🍎🍎
     elTouch = div('mm-touch');
     elTouch.innerHTML =
       '<div class="mm-joy" id="mm-joy"><div class="mm-joy-knob" id="mm-joyknob"></div></div>' +
+      '<div class="mm-dpad" id="mm-dpad">' +
+        '<button class="mm-dbtn mm-dup" data-dir="up" aria-label="うえ">▲</button>' +
+        '<button class="mm-dbtn mm-ddown" data-dir="down" aria-label="した">▼</button>' +
+        '<button class="mm-dbtn mm-dleft" data-dir="left" aria-label="ひだり">◀</button>' +
+        '<button class="mm-dbtn mm-dright" data-dir="right" aria-label="みぎ">▶</button>' +
+      '</div>' +
       '<button class="mm-a" id="mm-atkbtn">けん</button>' +
       '<button class="mm-bomb" id="mm-bombbtn">💣</button>' +
       '<button class="mm-boomerang" id="mm-boombtn">🪃</button>' +
       '<button class="mm-bow" id="mm-bowbtn">🏹</button>' +
       '<button class="mm-pause" id="mm-pausebtn">⏸</button>' +
-      '<div class="mm-hint" id="mm-hint">ひだり＝うごく ／ みぎ＝けん ／ 💣＝ばくだん</div>';
+      '<div class="mm-hint" id="mm-hint">じゅうじボタン＝うごく ／ けん＝こうげき ／ 💣＝ばくだん</div>';
     elGame.appendChild(elTouch);
     root.appendChild(elGame);
 
@@ -2541,6 +2595,16 @@ var QBANK = {"nensho":[{"q":"りんごは なんこ あるかな？ 🍎🍎🍎
     elGame.querySelector('#mm-bombbtn').addEventListener('mousedown', function (e) { e.preventDefault(); input.bombQueued = true; });
     elGame.querySelector('#mm-boombtn').addEventListener('mousedown', function (e) { e.preventDefault(); input.boomerangQueued = true; });
     elGame.querySelector('#mm-bowbtn').addEventListener('mousedown', function (e) { e.preventDefault(); input.bowQueued = true; });
+    // 十字ボタン：PCではマウスでも動かせるように
+    var mouseDir = '';
+    elGame.querySelectorAll('.mm-dbtn').forEach(function (b) {
+      b.addEventListener('mousedown', function (e) {
+        e.preventDefault(); mouseDir = b.getAttribute('data-dir'); setDir(mouseDir, true); b.classList.add('on');
+      });
+    });
+    window.addEventListener('mouseup', function () {
+      if (mouseDir) { setDir(mouseDir, false); var mb = dpadBtnFor(mouseDir); if (mb) mb.classList.remove('on'); mouseDir = ''; }
+    });
   }
   // もちものに あわせて ◎/🏹ボタンの 表示を きりかえ
   function updateItemButtons() {

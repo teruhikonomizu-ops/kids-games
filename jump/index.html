@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>べんきょうジャンプ ～よこスクロールアクション～</title>
 <style>
   :root { --ui: #1b2a4a; }
@@ -15,7 +15,7 @@
     user-select: none; -webkit-user-select: none;
   }
   #wrap {
-    position: relative; width: 100vw; height: 100vh;
+    position: relative; width: 100vw; height: 100vh; height: 100dvh;
     display: flex; align-items: center; justify-content: center;
   }
   #game {
@@ -33,7 +33,8 @@
     display: none; align-items: center; justify-content: center;
     flex-direction: column; text-align: center;
     background: rgba(8,14,30,.78); backdrop-filter: blur(2px);
-    padding: 18px; z-index: 10;
+    padding: 16px; z-index: 10;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
   }
   .overlay.show { display: flex; }
   .card {
@@ -41,6 +42,7 @@
     border: 3px solid #4f7bd6; border-radius: 18px;
     padding: 22px 24px; max-width: 560px; width: 92%;
     box-shadow: 0 10px 40px rgba(0,0,0,.5);
+    margin: auto;   /* 縦に収まらない時はスクロールで全体（スタートボタン）に届く */
   }
   h1 { margin: 0 0 6px; font-size: clamp(26px, 6vw, 44px); letter-spacing: 1px; }
   h1 .sub { display:block; font-size: 14px; font-weight: 400; opacity:.85; margin-top:4px; letter-spacing:0;}
@@ -82,7 +84,7 @@
 
   /* ===== HUD ===== */
   #hud {
-    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    position:absolute; top: calc(env(safe-area-inset-top, 0px) + 10px); left:50%; transform:translateX(-50%);
     display:flex; gap:14px; align-items:center;
     background: rgba(8,14,30,.55); border:2px solid rgba(255,255,255,.18);
     padding:6px 14px; border-radius: 999px; font-weight:800; font-size:15px;
@@ -95,22 +97,41 @@
   }
 
   /* ===== タッチ操作 ===== */
-  #touch { position:absolute; inset:0; z-index: 6; pointer-events:none; }
+  /* position:fixed＋dvh で、スマホのアドレスバーに隠れず画面の見えている範囲の底に置く */
+  #touch { position:fixed; inset:0; z-index: 6; pointer-events:none; }
   .pad {
-    position:absolute; bottom: 18px; pointer-events:auto; cursor:pointer;
-    width: 76px; height: 76px; border-radius: 50%;
-    background: rgba(255,255,255,.16); border:2px solid rgba(255,255,255,.45);
+    position:absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 26px);
+    pointer-events:auto; cursor:pointer;
+    width: 86px; height: 86px; border-radius: 50%;
+    background: rgba(255,255,255,.18); border:3px solid rgba(255,255,255,.5);
     display:flex; align-items:center; justify-content:center;
-    font-size: 34px; color:#fff; user-select:none; touch-action:none;
+    font-size: 38px; color:#fff; user-select:none; touch-action:none;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
   }
-  .pad:active, .pad.on { background: rgba(255,255,255,.4); }
-  #padLeft  { left: 18px; }
-  #padRight { left: 110px; }
-  #padJump  { right: 18px; width: 92px; height: 92px; font-size: 30px;
-              background: rgba(255,176,61,.30); border-color: rgba(255,176,61,.7);}
+  .pad:active, .pad.on { background: rgba(255,255,255,.42); }
+  #padLeft  { left: calc(env(safe-area-inset-left, 0px) + 18px); }
+  #padRight { left: calc(env(safe-area-inset-left, 0px) + 116px); }
+  #padJump  { right: calc(env(safe-area-inset-right, 0px) + 18px);
+              width: 104px; height: 104px; font-size: 30px;
+              background: rgba(255,176,61,.34); border-color: rgba(255,176,61,.75);}
   /* タッチ端末でだけ表示 */
   #touch.enabled .pad { display:flex; }
   #touch:not(.enabled) .pad { display:none; }
+
+  /* 横向きで画面が低いとき、カードを縮めてスタートボタンを画面内に収める */
+  @media (orientation: landscape) and (max-height: 540px) {
+    .card { padding: 14px 18px; }
+    h1 { font-size: clamp(20px, 5vw, 30px); margin-bottom: 2px; }
+    h1 .sub { font-size: 12px; margin-top: 2px; }
+    p.lead { font-size: 12.5px; line-height: 1.45; margin: 4px 0 8px; }
+    .diffrow { margin: 4px 0 8px; gap: 6px; }
+    .diff { padding: 7px 12px; font-size: 13px; }
+    .btn { padding: 11px 20px; font-size: 16px; margin: 4px; }
+    .choices { gap: 8px; }
+    .choice { padding: 12px; font-size: 22px; }
+    #quizQ { font-size: clamp(22px, 6vw, 36px); margin: 4px 0; }
+    #quizMsg { min-height: 18px; margin: 4px 0 8px; }
+  }
 
   /* スマホを縦に持っているときだけ「横向きにしてね」案内を全面表示 */
   #rotate {

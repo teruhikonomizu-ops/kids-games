@@ -3,7 +3,7 @@
    オフライン時だけキャッシュを使う（更新がすぐ反映される）。
    アイコンなどの静的ファイルは「キャッシュ優先」で軽快に。
    ゲーム本体は index.html に内蔵なので、これで更新が確実に届く。 */
-var VERSION = 'mamori-v4';
+var VERSION = 'mamori-v5';
 var ASSETS = [
   './',
   './index.html',
