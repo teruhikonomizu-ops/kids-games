@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>あそびのおへや 🎮</title>
+<meta name="theme-color" content="#0c1326" />
+<style>
+  :root { font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; min-height: 100%; }
+  body {
+    background: radial-gradient(circle at 50% 0%, #1b2a4a 0%, #0c1326 70%);
+    color: #fff; text-align: center;
+    padding: 28px 18px 48px; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h1 { font-size: 30px; margin: 8px 0 4px; text-shadow: 0 3px 0 rgba(0,0,0,.35); }
+  .sub { color: #9fb3d8; font-size: 15px; margin-bottom: 26px; }
+  .grid { display: flex; flex-direction: column; gap: 18px; width: 100%; max-width: 420px; }
+  a.card {
+    display: flex; align-items: center; gap: 16px; text-decoration: none; color: #fff;
+    background: #1c2740; border: 2px solid #33456e; border-radius: 22px;
+    padding: 18px 20px; box-shadow: 0 8px 22px rgba(0,0,0,.4);
+    transition: transform .08s ease, border-color .12s ease;
+  }
+  a.card:active { transform: scale(.97); border-color: #6fa8ff; }
+  .emoji { font-size: 46px; line-height: 1; filter: drop-shadow(0 3px 4px rgba(0,0,0,.4)); }
+  .txt { text-align: left; flex: 1; }
+  .name { font-size: 22px; font-weight: 700; }
+  .desc { font-size: 13px; color: #9fb3d8; margin-top: 3px; line-height: 1.4; }
+  .go { font-size: 26px; color: #ffd34d; }
+  footer { margin-top: 30px; color: #6b7ba0; font-size: 12px; line-height: 1.6; max-width: 360px; }
+</style>
+</head>
+<body>
+  <h1>🎮 あそびのおへや</h1>
+  <div class="sub">あそびたい ゲームを えらんでね</div>
+  <div class="grid">
+    <a class="card" href="./mamori/">
+      <div class="emoji">🗡️</div>
+      <div class="txt">
+        <div class="name">まもりのつるぎ</div>
+        <div class="desc">けんで たたかう ぼうけんゲーム。5ふんごとに クイズ！</div>
+      </div>
+      <div class="go">▶</div>
+    </a>
+    <a class="card" href="./craft/">
+      <div class="emoji">⛏️</div>
+      <div class="txt">
+        <div class="name">ブロッククラフト</div>
+        <div class="desc">ブロックを ほって つくる 3Dの せかい。</div>
+      </div>
+      <div class="go">▶</div>
+    </a>
+    <a class="card" href="./jump/">
+      <div class="emoji">🦊</div>
+      <div class="txt">
+        <div class="name">べんきょうジャンプ</div>
+        <div class="desc">ジャンプで すすむ よこスクロール。やられたら けいさんクイズ！</div>
+      </div>
+      <div class="go">▶</div>
+    </a>
+  </div>
+  <footer>
+    スマホの ホームに ついかすると アプリみたいに あそべるよ。<br>
+    （メニュー →「ホームがめんに ついか」）
+  </footer>
+</body>
+</html>

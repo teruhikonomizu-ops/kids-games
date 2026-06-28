@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>べんきょうジャンプ ～よこスクロールアクション～</title>
+<style>
+  :root { --ui: #1b2a4a; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #0c1326;
+    font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+    overflow: hidden; color: #fff;
+    user-select: none; -webkit-user-select: none;
+  }
+  #wrap {
+    position: relative; width: 100vw; height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #game {
+    background: #6fb7ff;
+    image-rendering: -webkit-optimize-contrast;
+    max-width: 100%; max-height: 100%;
+    box-shadow: 0 0 0 4px #0c1326, 0 12px 40px rgba(0,0,0,.6);
+    border-radius: 8px;
+    touch-action: none;
+  }
+
+  /* ===== オーバーレイ共通 ===== */
+  .overlay {
+    position: absolute; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    flex-direction: column; text-align: center;
+    background: rgba(8,14,30,.78); backdrop-filter: blur(2px);
+    padding: 18px; z-index: 10;
+  }
+  .overlay.show { display: flex; }
+  .card {
+    background: linear-gradient(180deg,#223a6b,#16264a);
+    border: 3px solid #4f7bd6; border-radius: 18px;
+    padding: 22px 24px; max-width: 560px; width: 92%;
+    box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  }
+  h1 { margin: 0 0 6px; font-size: clamp(26px, 6vw, 44px); letter-spacing: 1px; }
+  h1 .sub { display:block; font-size: 14px; font-weight: 400; opacity:.85; margin-top:4px; letter-spacing:0;}
+  p.lead { margin: 6px 0 16px; font-size: 15px; line-height: 1.7; opacity: .92; }
+  .btn {
+    appearance: none; border: none; cursor: pointer;
+    font-family: inherit; font-weight: 700; color: #fff;
+    background: linear-gradient(180deg,#ff9b3d,#f06d12);
+    border-radius: 14px; padding: 14px 22px; font-size: 18px;
+    box-shadow: 0 5px 0 #b14d06, 0 8px 16px rgba(0,0,0,.35);
+    transition: transform .05s, box-shadow .05s; margin: 6px;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #b14d06; }
+  .btn.green { background: linear-gradient(180deg,#5fd06d,#2fa83f); box-shadow: 0 5px 0 #1d7a2a, 0 8px 16px rgba(0,0,0,.35); }
+  .btn.blue  { background: linear-gradient(180deg,#5aa9ff,#2f7be0); box-shadow: 0 5px 0 #1c54a8, 0 8px 16px rgba(0,0,0,.35); }
+
+  .diffrow { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin: 6px 0 14px; }
+  .diff {
+    appearance:none; border:2px solid #4f7bd6; cursor:pointer;
+    background:#16264a; color:#cfe0ff; font-family:inherit; font-weight:700;
+    border-radius:12px; padding:10px 16px; font-size:15px;
+  }
+  .diff.active { background:#ffd23f; color:#3a2a00; border-color:#ffd23f; }
+
+  /* ===== クイズ ===== */
+  #quizQ { font-size: clamp(26px, 7vw, 46px); font-weight: 800; margin: 8px 0 4px; }
+  #quizMsg { min-height: 22px; font-size: 16px; margin: 6px 0 12px; font-weight:700;}
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+  .choice {
+    appearance:none; border:none; cursor:pointer; font-family:inherit; font-weight:800;
+    background: linear-gradient(180deg,#ffffff,#dfe8ff); color:#16264a;
+    border-radius: 14px; padding: 16px; font-size: 26px;
+    box-shadow: 0 4px 0 #9bb0dd; transition: transform .05s;
+  }
+  .choice:active { transform: translateY(3px); box-shadow:0 1px 0 #9bb0dd; }
+  .choice:disabled { opacity:.55; cursor:default; }
+  .choice.correct { background: linear-gradient(180deg,#9dffac,#46d65d); }
+  .choice.wrong   { background: linear-gradient(180deg,#ffb3b3,#ff6b6b); }
+
+  /* ===== HUD ===== */
+  #hud {
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    display:flex; gap:14px; align-items:center;
+    background: rgba(8,14,30,.55); border:2px solid rgba(255,255,255,.18);
+    padding:6px 14px; border-radius: 999px; font-weight:800; font-size:15px;
+    z-index: 5; pointer-events:none; white-space:nowrap;
+  }
+  #hud .item { display:flex; align-items:center; gap:5px; }
+  #muteBtn {
+    pointer-events:auto; cursor:pointer; background:none; border:none;
+    color:#fff; font-size:18px; padding:0; line-height:1;
+  }
+
+  /* ===== タッチ操作 ===== */
+  #touch { position:absolute; inset:0; z-index: 6; pointer-events:none; }
+  .pad {
+    position:absolute; bottom: 18px; pointer-events:auto; cursor:pointer;
+    width: 76px; height: 76px; border-radius: 50%;
+    background: rgba(255,255,255,.16); border:2px solid rgba(255,255,255,.45);
+    display:flex; align-items:center; justify-content:center;
+    font-size: 34px; color:#fff; user-select:none; touch-action:none;
+  }
+  .pad:active, .pad.on { background: rgba(255,255,255,.4); }
+  #padLeft  { left: 18px; }
+  #padRight { left: 110px; }
+  #padJump  { right: 18px; width: 92px; height: 92px; font-size: 30px;
+              background: rgba(255,176,61,.30); border-color: rgba(255,176,61,.7);}
+  /* タッチ端末でだけ表示 */
+  #touch.enabled .pad { display:flex; }
+  #touch:not(.enabled) .pad { display:none; }
+
+  /* スマホを縦に持っているときだけ「横向きにしてね」案内を全面表示 */
+  #rotate {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px; background: #0c1326;
+    color: #fff; font-weight: 800;
+  }
+  @media (orientation: portrait) and (pointer: coarse) {
+    #rotate { display: flex; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <!-- スマホ縦持ちのときだけ「横向きにしてね」案内 -->
+  <div id="rotate">
+    <div style="font-size:64px">📱🔄</div>
+    <div style="font-size:24px;margin-top:10px">よこむきに してね</div>
+    <div style="font-size:15px;opacity:.85;margin-top:8px">スマホを よこむきに すると あそびやすいよ</div>
+  </div>
+
+  <canvas id="game" width="960" height="540"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="item">🪙 <span id="hudCoins">0</span></div>
+    <div class="item">💀 <span id="hudDeaths">0</span></div>
+    <div class="item">🚩 <span id="hudStage">ステージ1</span></div>
+    <button id="muteBtn" title="音 ON/OFF">🔊</button>
+  </div>
+
+  <!-- タッチ操作 -->
+  <div id="touch">
+    <div id="padLeft"  class="pad">◀</div>
+    <div id="padRight" class="pad">▶</div>
+    <div id="padJump"  class="pad">ジャンプ</div>
+  </div>
+
+  <!-- スタート画面 -->
+  <div id="startScreen" class="overlay show">
+    <div class="card">
+      <h1>べんきょうジャンプ<span class="sub">よこスクロール アクション</span></h1>
+      <p class="lead">
+        ← → で うごく・<b>スペース / うえ / ジャンプボタン</b> で とぶ。<br>
+        てきは <b>上から ふんで</b> やっつけよう！<br>
+        よこや 下から あたったり 穴に おちると…<b>ミス！</b><br>
+        ミスしたら <b>もんだいを とくと ふっかつ</b> できるよ。<br>
+        ⭐コインを あつめて ゴールの 🏰 を めざそう！
+      </p>
+      <div>むずかしさ をえらんでね</div>
+      <div class="diffrow" id="diffRow">
+        <button class="diff active" data-diff="easy">やさしい<br><small>たしざん・ひきざん</small></button>
+        <button class="diff" data-diff="normal">ふつう<br><small>九九 まで</small></button>
+        <button class="diff" data-diff="hard">むずかしい<br><small>かけ算・わり算</small></button>
+      </div>
+      <button class="btn green" id="startBtn">スタート！</button>
+    </div>
+  </div>
+
+  <!-- クイズ画面 -->
+  <div id="quizScreen" class="overlay">
+    <div class="card">
+      <div style="font-size:38px">💥</div>
+      <div style="font-weight:800;font-size:18px;margin-bottom:4px">ミス！ もんだいを といて ふっかつ しよう</div>
+      <div id="quizQ">1 + 1 = ?</div>
+      <div id="quizMsg">こたえを えらんでね</div>
+      <div class="choices" id="quizChoices"></div>
+    </div>
+  </div>
+
+  <!-- クリア画面 -->
+  <div id="winScreen" class="overlay">
+    <div class="card">
+      <div style="font-size:54px">🏆</div>
+      <h1>ゴール！ クリア！</h1>
+      <p class="lead" id="winStats">あつめたコイン：0 ・ ミス：0かい</p>
+      <button class="btn green" id="replayBtn">もういちど あそぶ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function () {
+  // ====================================================================
+  //  キャンバス / 基本設定
+  // ====================================================================
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const VIEW_W = 960, VIEW_H = 540;
+  const GROUND_Y = 460;          // 地面の上面
+  const LEVEL_W = 4300;          // ステージ全体のはば
+
+  // ---- 物理パラメータ ----
+  const GRAVITY   = 0.8;
+  const MAX_FALL  = 17;
+  const RUN_ACCEL = 0.9;
+  const RUN_MAX   = 6.2;
+  const FRICTION  = 0.80;
+  const JUMP_VY   = -15.2;       // ジャンプの初速
+  const STOMP_VY  = -10.5;       // 敵を踏んだときのはねかえり
+  const COYOTE    = 7;           // 地面をはなれてもジャンプできる猶予(フレーム)
+  const JUMP_BUF  = 7;           // ジャンプ先行入力の猶予(フレーム)
+  const INVINCIBLE_AFTER_REVIVE = 110; // 復活後の無敵(フレーム)
+
+  // ====================================================================
+  //  ステージ・データ
+  // ====================================================================
+  // 地面ブロック（すきま＝穴）。x,y,w,h（yは上面）
+  // ※ 穴の真上には足場を置かない（高くジャンプして渡るとき頭がぶつかるのを防ぐ）
+  const platforms = [
+    // ── メインの地面（あいだの すきまが「穴」。すべて140pxで直接ジャンプ可）──
+    { x: 0,    y: GROUND_Y, w: 770,  h: 120 },
+    { x: 910,  y: GROUND_Y, w: 690,  h: 120 },  // 穴 770..910 (140)
+    { x: 1740, y: GROUND_Y, w: 880,  h: 120 },  // 穴 1600..1740 (140)
+    { x: 2760, y: GROUND_Y, w: 1540, h: 120 },  // 穴 2620..2760 (140)
+    // ── 浮いている足場（すべて地面の上＝穴の上には無い。上面y≧340で地面から届く）──
+    { x: 250,  y: 360, w: 120, h: 24 },
+    { x: 520,  y: 340, w: 120, h: 24 },
+    { x: 1000, y: 360, w: 130, h: 24 },
+    { x: 1300, y: 340, w: 120, h: 24 },
+    { x: 1850, y: 360, w: 130, h: 24 },
+    { x: 2200, y: 340, w: 120, h: 24 },
+    { x: 2950, y: 360, w: 130, h: 24 },
+    { x: 3300, y: 340, w: 120, h: 24 },
+    { x: 3650, y: 360, w: 120, h: 24 },
+  ];
+
+  // 敵（パトロール範囲つき）。各セグメント内に収め、穴に落ちないようにする。
+  const enemyDefs = [
+    { x: 330,  range: 200 },   // seg1 (0..770)
+    { x: 980,  range: 240 },   // seg2 (910..1600)
+    { x: 1330, range: 180 },   // seg2
+    { x: 1850, range: 300 },   // seg3 (1740..2620)
+    { x: 2300, range: 180 },   // seg3
+    { x: 2900, range: 300 },   // seg4 (2760..4300)
+    { x: 3300, range: 280 },   // seg4
+    { x: 3700, range: 200 },   // seg4
+  ];
+
+  // コイン（y∈おおよそ290〜410。地面から or 穴をジャンプ中に取れる高さ）
+  const coinDefs = [
+    {x:250,y:300},{x:300,y:300},
+    {x:420,y:400},{x:460,y:400},{x:500,y:400},
+    {x:560,y:300},{x:600,y:300},
+    {x:800,y:330},{x:840,y:310},{x:880,y:330},   // 穴1の上(空中)
+    {x:960,y:400},{x:1000,y:300},{x:1050,y:300},
+    {x:1300,y:300},{x:1340,y:300},
+    {x:1500,y:400},{x:1540,y:400},
+    {x:1630,y:330},{x:1670,y:310},{x:1710,y:330}, // 穴2の上(空中)
+    {x:1850,y:300},{x:1900,y:300},
+    {x:2050,y:400},{x:2090,y:400},
+    {x:2200,y:300},{x:2240,y:300},
+    {x:2650,y:330},{x:2690,y:310},{x:2730,y:330}, // 穴3の上(空中)
+    {x:2950,y:300},{x:3000,y:300},
+    {x:3150,y:400},{x:3200,y:400},
+    {x:3300,y:300},{x:3340,y:300},
+    {x:3500,y:400},{x:3650,y:300},{x:3700,y:300},
+    {x:3950,y:400},{x:4000,y:400},{x:4050,y:400},
+  ];
+
+  // チェックポイント（旗）と スタート地点
+  const SPAWN_X = 60;
+  const checkpointDefs = [
+    { x: 930 },   // seg2 のはじめ
+    { x: 1760 },  // seg3 のはじめ
+    { x: 2780 },  // seg4 のはじめ
+  ];
+  const GOAL_X = 4150; // ゴールの城
+
+  // ====================================================================
+  //  ゲーム状態
+  // ====================================================================
+  const STATE = { START:"start", PLAY:"play", QUIZ:"quiz", WIN:"win" };
+  let state = STATE.START;
+  let difficulty = "easy";
+  let muted = false;
+
+  let player, enemies, coins, checkpoints;
+  let cameraX = 0;
+  let coinsGot = 0, deaths = 0;
+  let lastCheckpointX = SPAWN_X;
+  let pendingRevive = false;     // クイズ正解後に復活させるフラグ
+
+  // 入力
+  const keys = { left:false, right:false, jump:false };
+  let jumpBuffer = 0;            // ジャンプ先行入力
+  let jumpHeld = false;          // 可変ジャンプ用
+
+  function topOfGroundAt(x) {
+    // 指定x の真下にある一番うえの足場の上面を返す（なければnull）
+    let best = null;
+    for (const p of platforms) {
+      if (x >= p.x && x <= p.x + p.w) {
+        if (best === null || p.y < best) best = p.y;
+      }
+    }
+    return best;
+  }
+
+  function clearInput() {
+    keys.left = false; keys.right = false; keys.jump = false;
+    jumpHeld = false; jumpBuffer = 0;
+  }
+
+  function resetGame() {
+    player = {
+      x: SPAWN_X, y: GROUND_Y - 48, w: 40, h: 48,
+      vx: 0, vy: 0, onGround: false, facing: 1,
+      coyote: 0, invincible: 0, alive: true,
+      canCutJump: false, animT: 0,
+    };
+    clearInput();
+    enemies = enemyDefs.map(d => ({
+      x: d.x, y: GROUND_Y - 40, w: 40, h: 40,
+      minX: d.x, maxX: d.x + d.range,
+      vx: 1.3, alive: true, squashT: 0,
+    }));
+    coins = coinDefs.map(c => ({ x:c.x, y:c.y, w:26, h:26, got:false, t:Math.random()*6.28 }));
+    checkpoints = checkpointDefs.map(c => ({ x:c.x, y:GROUND_Y-70, reached:false }));
+    cameraX = 0;
+    coinsGot = 0; deaths = 0;
+    lastCheckpointX = SPAWN_X;
+    pendingRevive = false;
+    jumpBuffer = 0; jumpHeld = false;
+    updateHud();
+  }
+
+  function reviveAtCheckpoint() {
+    const gy = topOfGroundAt(lastCheckpointX) ?? GROUND_Y;
+    player.x = lastCheckpointX;
+    player.y = gy - player.h - 1;
+    player.vx = 0; player.vy = 0;
+    player.onGround = false;
+    player.alive = true;
+    player.canCutJump = false;
+    player.invincible = INVINCIBLE_AFTER_REVIVE;
+    // 押しっぱなしの入力をクリア（復活直後に勝手に歩いて穴へ落ちるのを防ぐ）
+    clearInput();
+  }
+
+  // ====================================================================
+  //  入力
+  // ====================================================================
+  function pressJump() {
+    jumpBuffer = JUMP_BUF;
+    jumpHeld = true;
+    keys.jump = true;
+  }
+  function releaseJump() { keys.jump = false; jumpHeld = false; }
+
+  window.addEventListener("keydown", (e) => {
+    if (e.repeat) return;
+    switch (e.code) {
+      case "ArrowLeft": case "KeyA":  if (state === STATE.PLAY) keys.left = true;  e.preventDefault(); break;
+      case "ArrowRight": case "KeyD": if (state === STATE.PLAY) keys.right = true; e.preventDefault(); break;
+      case "ArrowUp": case "Space": case "KeyW": case "KeyZ":
+        if (state === STATE.PLAY) { pressJump(); e.preventDefault(); }
+        break;
+      case "Digit1": case "Digit2": case "Digit3": case "Digit4":
+        if (state === STATE.QUIZ) {
+          const idx = Number(e.code.slice(5)) - 1;
+          const btns = document.querySelectorAll("#quizChoices .choice");
+          if (btns[idx]) btns[idx].click();
+        }
+        break;
+    }
+  });
+  window.addEventListener("keyup", (e) => {
+    switch (e.code) {
+      case "ArrowLeft": case "KeyA":  keys.left = false; break;
+      case "ArrowRight": case "KeyD": keys.right = false; break;
+      case "ArrowUp": case "Space": case "KeyW": case "KeyZ": releaseJump(); break;
+    }
+  });
+
+  // タッチ／マウス操作
+  function bindPad(id, onDown, onUp) {
+    const el = document.getElementById(id);
+    const down = (e) => { e.preventDefault(); el.classList.add("on"); onDown(); };
+    const up   = (e) => { e.preventDefault(); el.classList.remove("on"); onUp(); };
+    el.addEventListener("touchstart", down, { passive:false });
+    el.addEventListener("touchend", up,   { passive:false });
+    el.addEventListener("touchcancel", up,{ passive:false });
+    el.addEventListener("mousedown", down);
+    window.addEventListener("mouseup", up);
+    el.addEventListener("mouseleave", () => { el.classList.remove("on"); });
+  }
+  bindPad("padLeft",  () => { if (state === STATE.PLAY) keys.left = true; },  () => keys.left = false);
+  bindPad("padRight", () => { if (state === STATE.PLAY) keys.right = true; }, () => keys.right = false);
+  bindPad("padJump",  () => { if (state === STATE.PLAY) pressJump(); }, releaseJump);
+
+  // タッチ端末ならパッドを表示
+  if (("ontouchstart" in window) || navigator.maxTouchPoints > 0) {
+    document.getElementById("touch").classList.add("enabled");
+  }
+
+  // ====================================================================
+  //  サウンド（WebAudio・ファイル不要）
+  // ====================================================================
+  let actx = null;
+  function initAudio() {
+    if (!actx) {
+      try { actx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch (e) { actx = null; }
+    }
+    if (actx && actx.state === "suspended") actx.resume();
+  }
+  function tone(freq, start, dur, type, vol) {
+    if (!actx) return;
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = type || "square";
+    o.frequency.setValueAtTime(freq, actx.currentTime + start);
+    g.gain.setValueAtTime(0.0001, actx.currentTime + start);
+    g.gain.exponentialRampToValueAtTime(vol || 0.16, actx.currentTime + start + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + start + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(actx.currentTime + start);
+    o.stop(actx.currentTime + start + dur + 0.02);
+  }
+  const SFX = {
+    jump:    () => { if(!muted){ tone(520,0,.12,"square",.14); tone(780,.05,.12,"square",.12);} },
+    coin:    () => { if(!muted){ tone(988,0,.08,"square",.14); tone(1318,.07,.12,"square",.13);} },
+    stomp:   () => { if(!muted){ tone(300,0,.10,"square",.16); tone(160,.06,.14,"square",.14);} },
+    die:     () => { if(!muted){ tone(440,0,.14,"sawtooth",.16); tone(330,.14,.16,"sawtooth",.15); tone(220,.30,.30,"sawtooth",.15);} },
+    correct: () => { if(!muted){ tone(660,0,.10,"square",.15); tone(880,.10,.10,"square",.15); tone(1175,.20,.18,"square",.15);} },
+    wrong:   () => { if(!muted){ tone(200,0,.20,"sawtooth",.16); tone(160,.18,.22,"sawtooth",.15);} },
+    win:     () => { if(!muted){ [523,659,784,1047].forEach((f,i)=>tone(f,i*0.13,.16,"square",.15)); } },
+    check:   () => { if(!muted){ tone(784,0,.10,"square",.14); tone(1047,.10,.14,"square",.13);} },
+  };
+
+  // ====================================================================
+  //  当たり判定ヘルパー
+  // ====================================================================
+  function aabb(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x &&
+           a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  // ====================================================================
+  //  更新（PLAY中だけ）
+  // ====================================================================
+  function update() {
+    const p = player;
+    p.animT++;
+
+    // ---- 横移動 ----
+    if (keys.left && !keys.right)      { p.vx -= RUN_ACCEL; p.facing = -1; }
+    else if (keys.right && !keys.left) { p.vx += RUN_ACCEL; p.facing = 1; }
+    else { p.vx *= FRICTION; if (Math.abs(p.vx) < 0.05) p.vx = 0; }
+    p.vx = Math.max(-RUN_MAX, Math.min(RUN_MAX, p.vx));
+
+    // ---- ジャンプ（コヨーテタイム＋先行入力） ----
+    if (p.onGround) p.coyote = COYOTE; else if (p.coyote > 0) p.coyote--;
+    if (jumpBuffer > 0) jumpBuffer--;
+    if (jumpBuffer > 0 && p.coyote > 0) {
+      p.vy = JUMP_VY; p.onGround = false; p.coyote = 0; jumpBuffer = 0;
+      p.canCutJump = true;   // このジャンプだけ「はなすと低く」の対象にする
+      SFX.jump();
+    }
+    // 可変ジャンプ（ボタンをはなすと低くとぶ）。踏みつけのはね返り(canCutJump=false)は対象外。
+    if (!jumpHeld && p.canCutJump && p.vy < -4) p.vy = -4;
+
+    // ---- 重力 ----
+    p.vy += GRAVITY;
+    if (p.vy > MAX_FALL) p.vy = MAX_FALL;
+
+    // ---- 横移動＆衝突 ----
+    p.x += p.vx;
+    for (const pl of platforms) {
+      if (aabb(p, pl)) {
+        if (p.vx > 0)      p.x = pl.x - p.w;
+        else if (p.vx < 0) p.x = pl.x + pl.w;
+        p.vx = 0;
+      }
+    }
+    // ステージ外（左右）に出ない
+    if (p.x < 0) { p.x = 0; if (p.vx < 0) p.vx = 0; }
+    if (p.x + p.w > LEVEL_W) { p.x = LEVEL_W - p.w; if (p.vx > 0) p.vx = 0; }
+
+    // ---- たて移動＆衝突 ----
+    p.y += p.vy;
+    p.onGround = false;
+    for (const pl of platforms) {
+      if (aabb(p, pl)) {
+        if (p.vy > 0)      { p.y = pl.y - p.h;  p.vy = 0; p.onGround = true; }
+        else if (p.vy < 0) { p.y = pl.y + pl.h; p.vy = 0; }
+      }
+    }
+
+    if (p.invincible > 0) p.invincible--;
+
+    // ---- 穴に落ちた ----
+    if (p.y > VIEW_H + 160) { die(); return; }
+
+    // ---- 敵の更新 ----
+    for (const en of enemies) {
+      if (!en.alive) { if (en.squashT > 0) en.squashT--; continue; }
+      en.x += en.vx;
+      if (en.x <= en.minX) { en.x = en.minX; en.vx = Math.abs(en.vx); }
+      if (en.x + en.w >= en.maxX) { en.x = en.maxX - en.w; en.vx = -Math.abs(en.vx); }
+    }
+
+    // ---- プレイヤー × 敵 ----
+    for (const en of enemies) {
+      if (!en.alive || !aabb(p, en)) continue;
+      const fallingOnto = p.vy > 0 && (p.y + p.h - en.y) < 24;
+      if (fallingOnto) {
+        en.alive = false; en.squashT = 18;
+        p.vy = STOMP_VY; p.onGround = false;
+        p.canCutJump = false;   // 踏みつけのはね返りは可変ジャンプで切らない
+        SFX.stomp();
+      } else if (p.invincible <= 0) {
+        die(); return;
+      }
+    }
+
+    // ---- コイン ----
+    for (const c of coins) {
+      if (c.got) continue;
+      c.t += 0.12;
+      if (aabb(p, c)) { c.got = true; coinsGot++; updateHud(); SFX.coin(); }
+    }
+
+    // ---- チェックポイント ----
+    for (const cp of checkpoints) {
+      if (!cp.reached && p.x + p.w/2 >= cp.x) {
+        cp.reached = true;
+        lastCheckpointX = cp.x;
+        SFX.check();
+      }
+    }
+
+    // ---- ゴール ----
+    if (p.x + p.w/2 >= GOAL_X) { win(); return; }
+
+    // ---- カメラ ----
+    const target = p.x + p.w/2 - VIEW_W/2;
+    cameraX = Math.max(0, Math.min(LEVEL_W - VIEW_W, target));
+  }
+
+  function die() {
+    if (state !== STATE.PLAY) return;
+    deaths++; updateHud();
+    player.alive = false;
+    SFX.die();
+    state = STATE.QUIZ;
+    showQuiz();
+  }
+
+  function win() {
+    state = STATE.WIN;
+    SFX.win();
+    document.getElementById("winStats").textContent =
+      `あつめたコイン：${coinsGot}こ ・ ミス：${deaths}かい`;
+    show("winScreen");
+  }
+
+  // ====================================================================
+  //  クイズ（ミス→復活）
+  // ====================================================================
+  function randint(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+
+  function genQuestion(diff) {
+    let a, b, op, answer, text;
+    if (diff === "easy") {
+      if (Math.random() < 0.5) {
+        a = randint(1, 9); b = randint(1, 9); answer = a + b; text = `${a} + ${b}`;
+      } else {
+        a = randint(2, 9); b = randint(1, a); answer = a - b; text = `${a} - ${b}`;
+      }
+    } else if (diff === "normal") {
+      const r = Math.random();
+      if (r < 0.34) { a = randint(5,19); b = randint(1,19); answer=a+b; text=`${a} + ${b}`; }
+      else if (r < 0.67) { a = randint(8,19); b = randint(1,a); answer=a-b; text=`${a} - ${b}`; }
+      else { a = randint(2,9); b = randint(2,9); answer=a*b; text=`${a} × ${b}`; }
+    } else { // hard
+      const r = Math.random();
+      if (r < 0.34) { a = randint(2,9); b = randint(2,9); answer=a*b; text=`${a} × ${b}`; }
+      else if (r < 0.67) { b = randint(2,9); answer = randint(2,9); a = answer*b; text=`${a} ÷ ${b}`; }
+      else { a = randint(20,80); b = randint(10,40); answer=a+b; text=`${a} + ${b}`; }
+    }
+    // ダミーの選択肢
+    const set = new Set([answer]);
+    let guard = 0;
+    while (set.size < 4 && guard++ < 50) {
+      let d = answer + randint(-6, 6);
+      if (d < 0) d = answer + randint(1, 6);
+      if (d !== answer) set.add(d);
+    }
+    while (set.size < 4) set.add(answer + set.size); // 念のため
+    const choices = Array.from(set);
+    // シャッフル
+    for (let i = choices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [choices[i], choices[j]] = [choices[j], choices[i]];
+    }
+    return { text: `${text} = ?`, answer, choices };
+  }
+
+  let currentQuiz = null;
+  function showQuiz() {
+    currentQuiz = genQuestion(difficulty);
+    document.getElementById("quizQ").textContent = currentQuiz.text;
+    const msg = document.getElementById("quizMsg");
+    msg.textContent = "こたえを えらんでね";
+    msg.style.color = "#cfe0ff";
+    const box = document.getElementById("quizChoices");
+    box.innerHTML = "";
+    currentQuiz.choices.forEach((val) => {
+      const b = document.createElement("button");
+      b.className = "choice";
+      b.textContent = val;
+      b.addEventListener("click", () => answerQuiz(val, b));
+      box.appendChild(b);
+    });
+    show("quizScreen");
+  }
+
+  function answerQuiz(val, btn) {
+    if (!currentQuiz) return;
+    const msg = document.getElementById("quizMsg");
+    if (val === currentQuiz.answer) {
+      btn.classList.add("correct");
+      msg.textContent = "せいかい！ ふっかつ！";
+      msg.style.color = "#9dffac";
+      SFX.correct();
+      currentQuiz = null;
+      document.querySelectorAll("#quizChoices .choice").forEach(b => b.disabled = true);
+      setTimeout(() => {
+        hide("quizScreen");
+        reviveAtCheckpoint();
+        state = STATE.PLAY;
+      }, 650);
+    } else {
+      btn.classList.add("wrong");
+      btn.disabled = true;
+      msg.textContent = "ちがうよ。もういちど！";
+      msg.style.color = "#ffb3b3";
+      SFX.wrong();
+    }
+  }
+
+  // ====================================================================
+  //  画面の出し入れ
+  // ====================================================================
+  function show(id) {
+    document.querySelectorAll(".overlay").forEach(o => o.classList.remove("show"));
+    document.getElementById(id).classList.add("show");
+  }
+  function hide(id) { document.getElementById(id).classList.remove("show"); }
+  function hideAllOverlays() {
+    document.querySelectorAll(".overlay").forEach(o => o.classList.remove("show"));
+  }
+  function updateHud() {
+    document.getElementById("hudCoins").textContent = coinsGot;
+    document.getElementById("hudDeaths").textContent = deaths;
+  }
+
+  // ====================================================================
+  //  描画
+  // ====================================================================
+  function drawEmoji(emoji, cx, cy, size, flip) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (flip) ctx.scale(-1, 1);
+    ctx.font = size + "px serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(emoji, 0, 0);
+    ctx.restore();
+  }
+
+  function drawBackground() {
+    // 空のグラデーション
+    const g = ctx.createLinearGradient(0, 0, 0, VIEW_H);
+    g.addColorStop(0, "#6fb7ff");
+    g.addColorStop(1, "#bfe3ff");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    // 雲（パララックス）
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    const cloudOff = -(cameraX * 0.3);
+    for (let i = 0; i < 9; i++) {
+      const cx = ((i * 520 + cloudOff) % (LEVEL_W * 0.4 + 600) + (LEVEL_W*0.4+600)) % (LEVEL_W*0.4+600) - 100;
+      const cy = 70 + (i % 3) * 46;
+      cloud(cx, cy);
+    }
+    // 遠くの丘
+    ctx.fillStyle = "#7fce6b";
+    const hillOff = -(cameraX * 0.5);
+    for (let i = 0; i < 12; i++) {
+      const hx = i * 480 + hillOff;
+      ctx.beginPath();
+      ctx.arc(hx, GROUND_Y + 30, 150, Math.PI, 0);
+      ctx.fill();
+    }
+  }
+  function cloud(x, y) {
+    ctx.beginPath();
+    ctx.arc(x, y, 22, 0, 7);
+    ctx.arc(x + 24, y + 6, 28, 0, 7);
+    ctx.arc(x + 54, y, 22, 0, 7);
+    ctx.fill();
+  }
+
+  function drawWorld() {
+    ctx.save();
+    ctx.translate(-cameraX, 0);
+
+    // 足場・地面
+    for (const pl of platforms) {
+      const isGround = pl.y >= GROUND_Y;
+      // 画面外スキップ
+      if (pl.x + pl.w < cameraX - 40 || pl.x > cameraX + VIEW_W + 40) continue;
+      if (isGround) {
+        ctx.fillStyle = "#7a4b22";            // 土
+        ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
+        ctx.fillStyle = "#46a83a";            // しば
+        ctx.fillRect(pl.x, pl.y, pl.w, 14);
+        ctx.fillStyle = "rgba(0,0,0,.10)";
+        for (let bx = pl.x; bx < pl.x + pl.w; bx += 40) {
+          ctx.fillRect(bx, pl.y + 14, 2, pl.h - 14);
+        }
+      } else {
+        ctx.fillStyle = "#c8762e";            // れんが
+        ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
+        ctx.fillStyle = "#e0a05a";
+        ctx.fillRect(pl.x, pl.y, pl.w, 6);
+        ctx.strokeStyle = "rgba(0,0,0,.18)"; ctx.lineWidth = 1;
+        ctx.strokeRect(pl.x+0.5, pl.y+0.5, pl.w-1, pl.h-1);
+      }
+    }
+
+    // チェックポイント旗
+    for (const cp of checkpoints) {
+      if (cp.x < cameraX - 60 || cp.x > cameraX + VIEW_W + 60) continue;
+      ctx.fillStyle = "#5b6470";
+      ctx.fillRect(cp.x - 2, cp.y - 4, 4, 74);
+      drawEmoji(cp.reached ? "🚩" : "🏳️", cp.x + 12, cp.y + 2, 28, false);
+    }
+
+    // ゴールの城
+    if (GOAL_X > cameraX - 120 && GOAL_X < cameraX + VIEW_W + 120) {
+      ctx.fillStyle = "#9aa3ad";
+      ctx.fillRect(GOAL_X - 2, GROUND_Y - 120, 4, 120);
+      drawEmoji("🏁", GOAL_X + 16, GROUND_Y - 110, 30, false);
+      drawEmoji("🏰", GOAL_X + 90, GROUND_Y - 52, 96, false);
+    }
+
+    // コイン
+    for (const c of coins) {
+      if (c.got) continue;
+      if (c.x < cameraX - 40 || c.x > cameraX + VIEW_W + 40) continue;
+      const bob = Math.sin(c.t) * 4;
+      drawEmoji("🪙", c.x + c.w/2, c.y + c.h/2 + bob, 26, false);
+    }
+
+    // 敵
+    for (const en of enemies) {
+      if (en.x < cameraX - 60 || en.x > cameraX + VIEW_W + 60) continue;
+      if (en.alive) {
+        const wob = Math.sin(player.animT * 0.2 + en.x) * 2;
+        drawEmoji("👾", en.x + en.w/2, en.y + en.h/2 + wob, 38, en.vx > 0);
+      } else if (en.squashT > 0) {
+        drawEmoji("💨", en.x + en.w/2, en.y + en.h/2, 30, false);
+      }
+    }
+
+    // プレイヤー
+    drawPlayer();
+
+    ctx.restore();
+  }
+
+  function drawPlayer() {
+    const p = player;
+    // 復活直後の無敵は点滅
+    if (p.invincible > 0 && Math.floor(p.invincible / 5) % 2 === 0) return;
+    const cx = p.x + p.w/2;
+    const cy = p.y + p.h/2;
+    // ジャンプ中・歩行の小さなゆれ
+    let bob = 0;
+    if (p.onGround && Math.abs(p.vx) > 0.5) bob = Math.sin(p.animT * 0.4) * 2;
+    drawEmoji("🦊", cx, cy + bob, 44, p.facing < 0);
+  }
+
+  // ====================================================================
+  //  メインループ（固定タイムステップ）
+  // ====================================================================
+  let lastTime = performance.now();
+  let acc = 0;
+  const STEP = 1000 / 60;
+
+  function frame(now) {
+    let dt = now - lastTime;
+    lastTime = now;
+    if (dt > 250) dt = 250;
+    acc += dt;
+    let steps = 0;
+    while (acc >= STEP && steps < 5) {
+      if (state === STATE.PLAY) update();
+      acc -= STEP;
+      steps++;
+    }
+    // 描画
+    drawBackground();
+    drawWorld();
+    requestAnimationFrame(frame);
+  }
+
+  // ====================================================================
+  //  UIイベント
+  // ====================================================================
+  document.getElementById("diffRow").addEventListener("click", (e) => {
+    const b = e.target.closest(".diff");
+    if (!b) return;
+    document.querySelectorAll(".diff").forEach(d => d.classList.remove("active"));
+    b.classList.add("active");
+    difficulty = b.dataset.diff;
+  });
+
+  document.getElementById("startBtn").addEventListener("click", () => {
+    initAudio();
+    resetGame();
+    hideAllOverlays();
+    state = STATE.PLAY;
+  });
+
+  document.getElementById("replayBtn").addEventListener("click", () => {
+    initAudio();
+    resetGame();
+    hideAllOverlays();
+    state = STATE.PLAY;
+  });
+
+  document.getElementById("muteBtn").addEventListener("click", () => {
+    muted = !muted;
+    document.getElementById("muteBtn").textContent = muted ? "🔇" : "🔊";
+  });
+
+  // 起動
+  resetGame();
+  state = STATE.START;
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
